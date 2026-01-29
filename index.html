@@ -1,255 +1,38 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
   <title>Sistema RID Privado</title>
-  <link rel="stylesheet" href="assets/css/style.css"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="assets/css/style.css">
 </head>
 
-<body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand__title">RID</div>
-      <div class="brand__subtitle">Sistema RID Privado</div>
+<body class="bg-slate-900 text-white min-h-screen">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div>
+      <h1 class="logo">RID</h1>
+      <p class="subtitle">Sistema RID Privado</p>
     </div>
 
-    <nav class="tabs" role="tablist" aria-label="Navegação">
-      <button class="tab is-active" data-view="dashboard" role="tab">Dashboard</button>
-      <button class="tab" data-view="rids" role="tab">RIDs</button>
-      <button class="tab" data-view="relatorios" role="tab">Relatórios</button>
-      <button class="tab" data-view="config" role="tab">Config</button>
+    <nav class="menu">
+      <button onclick="showDashboard()">Dashboard</button>
+      <button onclick="showRIDs()">RIDs</button>
+      <button onclick="showRelatorios()">Relatórios</button>
+      <button onclick="showConfig()">Config</button>
     </nav>
   </header>
 
-  <main class="container">
-    <!-- DASHBOARD -->
-    <section class="view is-active" id="view-dashboard">
-      <h1 class="h1">Dashboard</h1>
-      <p class="muted">Visão geral do sistema</p>
+  <!-- CONTEÚDO -->
+  <main id="app" class="content"></main>
 
-      <div class="row">
-        <input id="globalSearch" class="input" placeholder="Buscar RID, título, solicitante..." />
-        <button class="btn" id="btnNovoRid">+ Novo RID</button>
-      </div>
-
-      <div class="cards">
-        <div class="card">
-          <div class="card__label">Total de RIDs</div>
-          <div class="card__value" id="kpiTotal">0</div>
-        </div>
-        <div class="card">
-          <div class="card__label">Abertos</div>
-          <div class="card__value" id="kpiAbertos">0</div>
-        </div>
-        <div class="card">
-          <div class="card__label">Em andamento</div>
-          <div class="card__value" id="kpiAndamento">0</div>
-        </div>
-        <div class="card">
-          <div class="card__label">Concluídos</div>
-          <div class="card__value" id="kpiConcluidos">0</div>
-        </div>
-      </div>
-
-      <h2 class="h2">Últimos RIDs <span class="muted">Atualização automática</span></h2>
-      <div class="tableWrap">
-        <table class="table" id="tblUltimos">
-          <thead>
-            <tr>
-              <th>Nº</th>
-              <th>Título</th>
-              <th>Status</th>
-              <th>Prioridade</th>
-              <th>Solicitante</th>
-              <th>Data</th>
-              <th class="right">Ações</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <h2 class="h2">Lista de RIDs</h2>
-      <div class="row">
-        <select id="fStatus" class="select">
-          <option value="">Todos</option>
-          <option>Aberto</option>
-          <option>Em andamento</option>
-          <option>Concluído</option>
-        </select>
-
-        <select id="fPrioridade" class="select">
-          <option value="">Todas</option>
-          <option>Baixa</option>
-          <option>Média</option>
-          <option>Alta</option>
-          <option>Crítica</option>
-        </select>
-
-        <button class="btn btn-ghost" id="btnExportar">Exportar CSV</button>
-      </div>
-
-      <div class="tableWrap">
-        <table class="table" id="tblRids">
-          <thead>
-            <tr>
-              <th>Nº</th>
-              <th>Título</th>
-              <th>Status</th>
-              <th>Prioridade</th>
-              <th>Solicitante</th>
-              <th>Data</th>
-              <th class="right">Ações</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <div class="note">
-        <strong>Configurações:</strong> armazenamento local (navegador). Se trocar de computador ou limpar cache, os dados somem.
-      </div>
-
-      <footer class="footer">
-        <span>© Todos os direitos reservados.</span>
-      </footer>
-    </section>
-
-    <!-- RIDS -->
-    <section class="view" id="view-rids">
-      <h1 class="h1">RIDs</h1>
-      <p class="muted">Gerencie e acompanhe suas solicitações</p>
-
-      <div class="row">
-        <input id="ridsSearch" class="input" placeholder="Buscar por número, título, solicitante..." />
-        <button class="btn" id="btnNovoRid2">+ Novo RID</button>
-      </div>
-
-      <div class="tableWrap">
-        <table class="table" id="tblRids2">
-          <thead>
-            <tr>
-              <th>Nº</th>
-              <th>Título</th>
-              <th>Status</th>
-              <th>Prioridade</th>
-              <th>Solicitante</th>
-              <th>Data</th>
-              <th class="right">Ações</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- RELATORIOS -->
-    <section class="view" id="view-relatorios">
-      <h1 class="h1">Relatórios</h1>
-      <p class="muted">Resumo por status e prioridade</p>
-
-      <div class="grid2">
-        <div class="panel">
-          <h2 class="h2">Por Status</h2>
-          <div id="repStatus" class="repList"></div>
-        </div>
-        <div class="panel">
-          <h2 class="h2">Por Prioridade</h2>
-          <div id="repPrioridade" class="repList"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CONFIG -->
-    <section class="view" id="view-config">
-      <h1 class="h1">Configurações</h1>
-      <p class="muted">Ferramentas rápidas</p>
-
-      <div class="panel">
-        <h2 class="h2">Armazenamento</h2>
-        <p class="muted">
-          Os dados ficam salvos no seu navegador (localStorage).
-        </p>
-
-        <div class="row">
-          <button class="btn btn-danger" id="btnApagarTudo">Apagar todos os RIDs</button>
-          <button class="btn btn-ghost" id="btnCriarExemplos">Criar exemplos</button>
-        </div>
-
-        <div class="note">
-          Dica: se você quiser no futuro ligar isso a planilha/banco, dá pra fazer depois.
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- MODAL NOVO/EDITAR -->
-  <div class="modal" id="modal" aria-hidden="true">
-    <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <div class="modal__header">
-        <div>
-          <div class="modal__title" id="modalTitle">Novo RID</div>
-          <div class="muted" id="modalHint">Preencha os campos e salve.</div>
-        </div>
-        <button class="iconBtn" id="btnFecharModal" aria-label="Fechar">✕</button>
-      </div>
-
-      <div class="modal__body">
-        <div class="formRow">
-          <label>Número</label>
-          <input id="mNumero" class="input" placeholder="Ex: 1024" />
-        </div>
-
-        <div class="formRow">
-          <label>Data</label>
-          <input id="mData" class="input" type="date" />
-        </div>
-
-        <div class="formRow">
-          <label>Título</label>
-          <input id="mTitulo" class="input" placeholder="Ex: Ajuste de processo..." />
-        </div>
-
-        <div class="formRow">
-          <label>Status</label>
-          <select id="mStatus" class="select">
-            <option>Aberto</option>
-            <option>Em andamento</option>
-            <option>Concluído</option>
-          </select>
-        </div>
-
-        <div class="formRow">
-          <label>Prioridade</label>
-          <select id="mPrioridade" class="select">
-            <option>Baixa</option>
-            <option>Média</option>
-            <option>Alta</option>
-            <option>Crítica</option>
-          </select>
-        </div>
-
-        <div class="formRow">
-          <label>Solicitante</label>
-          <input id="mSolicitante" class="input" placeholder="Nome de quem solicitou" />
-        </div>
-
-        <div class="formRow">
-          <label>Descrição (opcional)</label>
-          <textarea id="mDescricao" class="textarea" placeholder="Detalhes do RID..."></textarea>
-        </div>
-
-        <div class="error" id="mErro" style="display:none;"></div>
-      </div>
-
-      <div class="modal__footer">
-        <button class="btn btn-ghost" id="btnCancelar">Cancelar</button>
-        <button class="btn" id="btnSalvar">Salvar</button>
-      </div>
-    </div>
-  </div>
-
+  <!-- JS -->
   <script src="assets/js/app.js"></script>
 </body>
 </html>
