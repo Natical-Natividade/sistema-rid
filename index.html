@@ -1,19 +1,245 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Sistema RID</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- CSS -->
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/style.css" />
 </head>
 <body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">RID</div>
+        <div class="brandText">
+          <strong>Sistema RID</strong>
+          <span>Privado</span>
+        </div>
+      </div>
 
-  <h1>Sistema RID</h1>
-  <p>Site funcionando corretamente 🎉</p>
+      <nav class="nav">
+        <button class="navItem active" data-view="dashboard">Dashboard</button>
+        <button class="navItem" data-view="rids">RIDs</button>
+        <button class="navItem" data-view="relatorios">Relatórios</button>
+        <button class="navItem" data-view="config">Config</button>
+      </nav>
 
-  <!-- JS -->
+      <div class="sidebarFooter">
+        <small>© Sistema RID</small>
+        <small class="muted">v1.0</small>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topLeft">
+          <h1 id="pageTitle">Dashboard</h1>
+          <p class="muted" id="pageSubtitle">Visão geral do sistema</p>
+        </div>
+
+        <div class="topRight">
+          <div class="search">
+            <input id="globalSearch" type="search" placeholder="Buscar RID, título, solicitante..." />
+          </div>
+          <button class="btn primary" id="btnNovoRid">+ Novo RID</button>
+        </div>
+      </header>
+
+      <section class="content">
+        <!-- DASHBOARD -->
+        <div class="view" id="view-dashboard">
+          <div class="cards">
+            <div class="card">
+              <div class="cardLabel">Total de RIDs</div>
+              <div class="cardValue" id="kpiTotal">0</div>
+            </div>
+            <div class="card">
+              <div class="cardLabel">Abertos</div>
+              <div class="cardValue" id="kpiAbertos">0</div>
+            </div>
+            <div class="card">
+              <div class="cardLabel">Em andamento</div>
+              <div class="cardValue" id="kpiAndamento">0</div>
+            </div>
+            <div class="card">
+              <div class="cardLabel">Concluídos</div>
+              <div class="cardValue" id="kpiConcluidos">0</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panelHead">
+              <strong>Últimos RIDs</strong>
+              <span class="muted">Atualização automática</span>
+            </div>
+
+            <div class="tableWrap">
+              <table class="table" id="tableUltimos">
+                <thead>
+                  <tr>
+                    <th>Nº</th>
+                    <th>Título</th>
+                    <th>Status</th>
+                    <th>Prioridade</th>
+                    <th>Solicitante</th>
+                    <th>Data</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIDS -->
+        <div class="view hidden" id="view-rids">
+          <div class="panel">
+            <div class="panelHead">
+              <strong>Lista de RIDs</strong>
+              <div class="row">
+                <select id="filtroStatus" class="select">
+                  <option value="">Todos</option>
+                  <option value="ABERTO">Aberto</option>
+                  <option value="ANDAMENTO">Em andamento</option>
+                  <option value="CONCLUIDO">Concluído</option>
+                </select>
+                <select id="filtroPrioridade" class="select">
+                  <option value="">Todas</option>
+                  <option value="BAIXA">Baixa</option>
+                  <option value="MEDIA">Média</option>
+                  <option value="ALTA">Alta</option>
+                </select>
+                <button class="btn" id="btnExportar">Exportar CSV</button>
+              </div>
+            </div>
+
+            <div class="tableWrap">
+              <table class="table" id="tableRids">
+                <thead>
+                  <tr>
+                    <th>Nº</th>
+                    <th>Título</th>
+                    <th>Status</th>
+                    <th>Prioridade</th>
+                    <th>Solicitante</th>
+                    <th>Data</th>
+                    <th class="right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- RELATORIOS -->
+        <div class="view hidden" id="view-relatorios">
+          <div class="panel">
+            <div class="panelHead">
+              <strong>Relatórios</strong>
+              <span class="muted">Resumo por status e prioridade</span>
+            </div>
+
+            <div class="grid2">
+              <div class="mini">
+                <div class="miniTitle">Por Status</div>
+                <div id="repStatus" class="miniBody"></div>
+              </div>
+              <div class="mini">
+                <div class="miniTitle">Por Prioridade</div>
+                <div id="repPrioridade" class="miniBody"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CONFIG -->
+        <div class="view hidden" id="view-config">
+          <div class="panel">
+            <div class="panelHead">
+              <strong>Configurações</strong>
+              <span class="muted">Armazenamento local (navegador)</span>
+            </div>
+
+            <div class="configBox">
+              <p class="muted">
+                Seus RIDs estão sendo salvos no navegador (localStorage). Se trocar de computador ou limpar o cache,
+                os dados somem. Depois a gente pode ligar isso em um banco/planilha.
+              </p>
+              <div class="row">
+                <button class="btn danger" id="btnResetar">Apagar todos os RIDs</button>
+                <button class="btn" id="btnSeed">Criar exemplos</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <span class="muted">© Todos os direitos reservados.</span>
+      </footer>
+    </main>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal hidden" id="modal">
+    <div class="modalCard">
+      <div class="modalHead">
+        <strong id="modalTitle">Novo RID</strong>
+        <button class="iconBtn" id="btnFecharModal" aria-label="Fechar">✕</button>
+      </div>
+
+      <form id="formRid" class="form">
+        <input type="hidden" id="ridId" />
+
+        <div class="grid2">
+          <div class="field">
+            <label>Número</label>
+            <input id="ridNumero" required placeholder="Ex: 1024" />
+          </div>
+          <div class="field">
+            <label>Data</label>
+            <input id="ridData" type="date" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Título</label>
+          <input id="ridTitulo" required placeholder="Ex: Ajuste de processo..." />
+        </div>
+
+        <div class="grid2">
+          <div class="field">
+            <label>Status</label>
+            <select id="ridStatus" class="select" required>
+              <option value="ABERTO">Aberto</option>
+              <option value="ANDAMENTO">Em andamento</option>
+              <option value="CONCLUIDO">Concluído</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Prioridade</label>
+            <select id="ridPrioridade" class="select" required>
+              <option value="BAIXA">Baixa</option>
+              <option value="MEDIA">Média</option>
+              <option value="ALTA">Alta</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Solicitante</label>
+          <input id="ridSolicitante" placeholder="Nome de quem solicitou" />
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn" id="btnCancelar">Cancelar</button>
+          <button type="submit" class="btn primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="assets/js/app.js"></script>
 </body>
 </html>
