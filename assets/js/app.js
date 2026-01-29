@@ -1,689 +1,388 @@
-// =========================
-// Sistema RID (sem login) - estilo “simples” parecido com o original
-// Persistência: localStorage
-// =========================
+(() => {
+  const STORAGE_KEY = "rid_privado_rids_v1";
 
-const LS_KEY = "rid_items_v1";
+  // ---------- Helpers ----------
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => document.querySelectorAll(sel);
 
-const app = document.getElementById("app");
+  const todayISO = () => {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${mm}-${dd}`;
+  };
 
-// Estado
-let state = {
-  view: "dashboard", // dashboard | rids | relatorios | config
-  rids: loadRids(),
-  search: "",
-  filterStatus: "Todos",
-  filterPrioridade: "Todas",
-  modalOpen: false,
-  editingId: null,
-};
+  const safeText = (v) => (v ?? "").toString().trim();
 
-// -------------------------
-// Storage
-// -------------------------
-function loadRids() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+  const load = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  };
 
-function saveRids() {
-  localStorage.setItem(LS_KEY, JSON.stringify(state.rids));
-}
+  const save = (list) => localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
 
-function nowISODate() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
+  const norm = (s) =>
+    safeText(s)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "");
 
-function padRid(n) {
-  const s = String(n);
-  return s.padStart(4, "0");
-}
+  const badgeStatus = (s) => {
+    if (s === "Concluído") return `<span class="badge green">${s}</span>`;
+    if (s === "Em andamento") return `<span class="badge yellow">${s}</span>`;
+    return `<span class="badge blue">${s}</span>`;
+  };
 
-function nextRidNumber() {
-  // pega maior número existente e soma 1
-  let max = 0;
-  for (const r of state.rids) {
-    const num = parseInt(String(r.numero).replace(/\D/g, ""), 10);
-    if (!Number.isNaN(num)) max = Math.max(max, num);
-  }
-  return padRid(max + 1);
-}
+  const badgePrio = (p) => {
+    if (p === "Crítica") return `<span class="badge red">${p}</span>`;
+    if (p === "Alta") return `<span class="badge yellow">${p}</span>`;
+    if (p === "Média") return `<span class="badge blue">${p}</span>`;
+    return `<span class="badge">${p}</span>`;
+  };
 
-// -------------------------
-// Helpers
-// -------------------------
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
+  const toBR = (iso) => {
+    if (!iso) return "";
+    // iso yyyy-mm-dd
+    const [y, m, d] = iso.split("-");
+    if (!y || !m || !d) return iso;
+    return `${d}/${m}/${y}`;
+  };
 
-function setView(view) {
-  state.view = view;
-  render();
-}
+  // ---------- State ----------
+  let rids = load();
+  let editingId = null;
 
-function openModalNew(editId = null) {
-  state.modalOpen = true;
-  state.editingId = editId;
-  render();
-}
+  // ---------- Tabs / Views ----------
+  const setView = (view) => {
+    $$(".tab").forEach((b) => b.classList.toggle("is-active", b.dataset.view === view));
+    $$(".view").forEach((v) => v.classList.toggle("is-active", v.id === `view-${view}`));
+  };
 
-function closeModal() {
-  state.modalOpen = false;
-  state.editingId = null;
-  render();
-}
-
-function deleteRid(id) {
-  state.rids = state.rids.filter(r => r.id !== id);
-  saveRids();
-  render();
-}
-
-function updateFilters({ search, status, prioridade }) {
-  if (search !== undefined) state.search = search;
-  if (status !== undefined) state.filterStatus = status;
-  if (prioridade !== undefined) state.filterPrioridade = prioridade;
-  render();
-}
-
-function filteredRids() {
-  let list = [...state.rids];
-
-  // busca
-  const q = state.search.trim().toLowerCase();
-  if (q) {
-    list = list.filter(r => {
-      const hay = [
-        r.numero,
-        r.titulo,
-        r.solicitante,
-        r.status,
-        r.prioridade
-      ].join(" ").toLowerCase();
-      return hay.includes(q);
+  $$(".tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setView(btn.dataset.view);
+      renderAll();
     });
-  }
-
-  // filtros
-  if (state.filterStatus !== "Todos") {
-    list = list.filter(r => r.status === state.filterStatus);
-  }
-  if (state.filterPrioridade !== "Todas") {
-    list = list.filter(r => r.prioridade === state.filterPrioridade);
-  }
-
-  // ordenação: data desc, numero desc
-  list.sort((a, b) => {
-    const da = a.data || "";
-    const db = b.data || "";
-    if (da !== db) return db.localeCompare(da);
-    return String(b.numero).localeCompare(String(a.numero));
   });
 
-  return list;
-}
-
-function counts() {
-  const total = state.rids.length;
-  const abertos = state.rids.filter(r => r.status === "Aberto").length;
-  const andamento = state.rids.filter(r => r.status === "Em andamento").length;
-  const concluidos = state.rids.filter(r => r.status === "Concluído").length;
-  return { total, abertos, andamento, concluidos };
-}
-
-function downloadCSV(rows) {
-  const header = ["Nº", "Data", "Título", "Status", "Prioridade", "Solicitante"];
-  const csv = [
-    header.join(";"),
-    ...rows.map(r => [
-      r.numero,
-      r.data,
-      (r.titulo || "").replaceAll(";", ","),
-      r.status,
-      r.prioridade,
-      (r.solicitante || "").replaceAll(";", ",")
-    ].join(";"))
-  ].join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `rids_${new Date().toISOString().slice(0,10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-// -------------------------
-// Render
-// -------------------------
-function render() {
-  // container igual ao estilo “simples”: tudo à esquerda
-  app.innerHTML = `
-    <div class="max-w-[900px]">
-      ${renderTopInfo()}
-      ${renderCurrentView()}
-      ${renderFooter()}
-      ${state.modalOpen ? renderModal() : ""}
-    </div>
-  `;
-
-  wireEvents();
-}
-
-function renderTopInfo() {
-  return `
-    <div class="mb-6">
-      <div class="text-sm text-slate-300">© Sistema RID v1.0</div>
-    </div>
-  `;
-}
-
-function renderCurrentView() {
-  switch (state.view) {
-    case "dashboard":
-      return renderDashboard();
-    case "rids":
-      return renderRids();
-    case "relatorios":
-      return renderRelatorios();
-    case "config":
-      return renderConfig();
-    default:
-      return renderDashboard();
-  }
-}
-
-function renderDashboard() {
-  const c = counts();
-  const latest = filteredRids().slice(0, 10);
-
-  return `
-    <h2 class="text-4xl font-extrabold text-blue-400 mb-4">Dashboard</h2>
-    <p class="mb-4 text-slate-200">Visão geral do sistema</p>
-
-    <div class="mb-3">
-      <input
-        id="searchTop"
-        class="text-black px-2 py-1 rounded"
-        style="width: 220px"
-        placeholder="Buscar RID, título, solicitante"
-        value="${escapeHtml(state.search)}"
-      />
-    </div>
-
-    <div class="mb-4">
-      <button class="bg-white text-black px-2 py-1 rounded" id="btnNewRidTop">+ Novo RID</button>
-    </div>
-
-    <div class="mb-4 leading-tight">
-      <div><b>Total de RIDs</b></div>
-      <div>${c.total}</div>
-      <div class="mt-2"><b>Abertos</b></div>
-      <div>${c.abertos}</div>
-      <div class="mt-2"><b>Em andamento</b></div>
-      <div>${c.andamento}</div>
-      <div class="mt-2"><b>Concluídos</b></div>
-      <div>${c.concluidos}</div>
-    </div>
-
-    <div class="mt-6">
-      <div class="font-bold mb-2">Últimos RIDs <span class="text-slate-300 font-normal">Atualização automática</span></div>
-      <div class="text-sm font-semibold mb-1">Nº&nbsp;&nbsp;Título&nbsp;&nbsp;Status&nbsp;&nbsp;Prioridade&nbsp;&nbsp;Solicitante&nbsp;&nbsp;Data</div>
-      <div class="space-y-1">
-        ${
-          latest.length
-            ? latest.map(r => `
-              <div class="text-sm">
-                ${escapeHtml(r.numero)}&nbsp;&nbsp;
-                ${escapeHtml(r.titulo)}&nbsp;&nbsp;
-                ${escapeHtml(r.status)}&nbsp;&nbsp;
-                ${escapeHtml(r.prioridade)}&nbsp;&nbsp;
-                ${escapeHtml(r.solicitante)}&nbsp;&nbsp;
-                ${escapeHtml(r.data)}
-              </div>
-            `).join("")
-            : `<div class="text-sm text-slate-300">Nenhum RID ainda.</div>`
-        }
-      </div>
-    </div>
-
-    <div class="mt-10">
-      <div class="font-bold mb-2">Lista de RIDs</div>
-
-      <div class="flex items-center gap-2 mb-2">
-        <select id="dashFilterStatus" class="text-black px-2 py-1 rounded">
-          ${["Todos","Aberto","Em andamento","Concluído"].map(s => `
-            <option ${s === state.filterStatus ? "selected" : ""}>${s}</option>
-          `).join("")}
-        </select>
-
-        <select id="dashFilterPrioridade" class="text-black px-2 py-1 rounded">
-          ${["Todas","Baixa","Média","Alta"].map(s => `
-            <option ${s === state.filterPrioridade ? "selected" : ""}>${s}</option>
-          `).join("")}
-        </select>
-
-        <button id="btnExportDash" class="bg-white text-black px-2 py-1 rounded">Exportar CSV</button>
-      </div>
-
-      <div class="text-sm font-semibold mb-1">Nº&nbsp;&nbsp;Título&nbsp;&nbsp;Status&nbsp;&nbsp;Prioridade&nbsp;&nbsp;Solicitante&nbsp;&nbsp;Data&nbsp;&nbsp;Ações</div>
-
-      <div class="space-y-1">
-        ${
-          filteredRids().length
-            ? filteredRids().slice(0, 30).map(r => `
-              <div class="text-sm">
-                ${escapeHtml(r.numero)}&nbsp;&nbsp;
-                ${escapeHtml(r.titulo)}&nbsp;&nbsp;
-                ${escapeHtml(r.status)}&nbsp;&nbsp;
-                ${escapeHtml(r.prioridade)}&nbsp;&nbsp;
-                ${escapeHtml(r.solicitante)}&nbsp;&nbsp;
-                ${escapeHtml(r.data)}&nbsp;&nbsp;
-                <button class="underline" data-edit="${r.id}">Editar</button>
-                <button class="underline" data-del="${r.id}">Excluir</button>
-              </div>
-            `).join("")
-            : `<div class="text-sm text-slate-300">Nenhum resultado.</div>`
-        }
-      </div>
-    </div>
-
-    <div class="mt-8">
-      <div class="font-bold mb-1">Configurações</div>
-      <div class="text-slate-200">
-        Armazenamento local (navegador)
-      </div>
-      <div class="text-slate-200 mt-2">
-        Seus RIDs estão sendo salvos no navegador (localStorage). Se trocar de computador ou limpar o cache, os dados somem.
-        Depois a gente pode ligar isso em um banco/planilha.
-      </div>
-
-      <div class="mt-3 flex gap-2">
-        <button id="btnWipe" class="bg-white text-black px-2 py-1 rounded">Apagar todos os RIDs</button>
-        <button id="btnSeed" class="bg-white text-black px-2 py-1 rounded">Criar exemplos</button>
-      </div>
-    </div>
-  `;
-}
-
-function renderRids() {
-  return `
-    <h2 class="text-3xl font-extrabold text-blue-400 mb-4">RIDs</h2>
-
-    <div class="mb-3">
-      <input
-        id="searchRids"
-        class="text-black px-2 py-1 rounded"
-        style="width: 260px"
-        placeholder="Buscar RID, título, solicitante"
-        value="${escapeHtml(state.search)}"
-      />
-      <button class="bg-white text-black px-2 py-1 rounded ml-2" id="btnNewRidList">+ Novo RID</button>
-    </div>
-
-    <div class="flex items-center gap-2 mb-3">
-      <label class="text-slate-200 text-sm">Status</label>
-      <select id="listFilterStatus" class="text-black px-2 py-1 rounded">
-        ${["Todos","Aberto","Em andamento","Concluído"].map(s => `
-          <option ${s === state.filterStatus ? "selected" : ""}>${s}</option>
-        `).join("")}
-      </select>
-
-      <label class="text-slate-200 text-sm ml-3">Prioridade</label>
-      <select id="listFilterPrioridade" class="text-black px-2 py-1 rounded">
-        ${["Todas","Baixa","Média","Alta"].map(s => `
-          <option ${s === state.filterPrioridade ? "selected" : ""}>${s}</option>
-        `).join("")}
-      </select>
-
-      <button id="btnExportList" class="bg-white text-black px-2 py-1 rounded ml-2">Exportar CSV</button>
-    </div>
-
-    <div class="text-sm font-semibold mb-1">
-      Nº&nbsp;&nbsp;Título&nbsp;&nbsp;Status&nbsp;&nbsp;Prioridade&nbsp;&nbsp;Solicitante&nbsp;&nbsp;Data&nbsp;&nbsp;Ações
-    </div>
-
-    <div class="space-y-1">
-      ${
-        filteredRids().length
-          ? filteredRids().map(r => `
-            <div class="text-sm">
-              ${escapeHtml(r.numero)}&nbsp;&nbsp;
-              ${escapeHtml(r.titulo)}&nbsp;&nbsp;
-              ${escapeHtml(r.status)}&nbsp;&nbsp;
-              ${escapeHtml(r.prioridade)}&nbsp;&nbsp;
-              ${escapeHtml(r.solicitante)}&nbsp;&nbsp;
-              ${escapeHtml(r.data)}&nbsp;&nbsp;
-              <button class="underline" data-edit="${r.id}">Editar</button>
-              <button class="underline" data-del="${r.id}">Excluir</button>
-            </div>
-          `).join("")
-          : `<div class="text-sm text-slate-300">Nenhum RID cadastrado.</div>`
-      }
-    </div>
-  `;
-}
-
-function renderRelatorios() {
-  const total = state.rids.length;
-
-  const byStatus = ["Aberto","Em andamento","Concluído"].map(s => ({
-    name: s,
-    count: state.rids.filter(r => r.status === s).length
-  }));
-
-  const byPrioridade = ["Baixa","Média","Alta"].map(p => ({
-    name: p,
-    count: state.rids.filter(r => r.prioridade === p).length
-  }));
-
-  return `
-    <h2 class="text-3xl font-extrabold text-blue-400 mb-4">Relatórios</h2>
-    <div class="text-slate-200 mb-2">Resumo por status e prioridade</div>
-
-    <div class="mt-3">
-      <div class="font-bold">Total</div>
-      <div>${total}</div>
-    </div>
-
-    <div class="mt-6">
-      <div class="font-bold">Por Status</div>
-      ${byStatus.map(x => `<div>${escapeHtml(x.name)}: ${x.count}</div>`).join("")}
-    </div>
-
-    <div class="mt-6">
-      <div class="font-bold">Por Prioridade</div>
-      ${byPrioridade.map(x => `<div>${escapeHtml(x.name)}: ${x.count}</div>`).join("")}
-    </div>
-
-    <div class="mt-6">
-      <button id="btnExportRel" class="bg-white text-black px-2 py-1 rounded">Exportar CSV</button>
-    </div>
-  `;
-}
-
-function renderConfig() {
-  return `
-    <h2 class="text-3xl font-extrabold text-blue-400 mb-4">Config</h2>
-
-    <div class="text-slate-200 mb-2">
-      Configurações Armazenamento local (navegador)
-    </div>
-
-    <div class="text-slate-200">
-      Seus RIDs estão sendo salvos no navegador (localStorage). Se trocar de computador ou limpar o cache, os dados somem.
-    </div>
-
-    <div class="mt-4 flex gap-2">
-      <button id="btnWipe2" class="bg-white text-black px-2 py-1 rounded">Apagar todos os RIDs</button>
-      <button id="btnSeed2" class="bg-white text-black px-2 py-1 rounded">Criar exemplos</button>
-    </div>
-  `;
-}
-
-function renderFooter() {
-  return `
-    <div class="mt-10 text-slate-300 text-sm">
-      © Todos os direitos reservados.
-    </div>
-  `;
-}
-
-function renderModal() {
-  const editing = state.editingId
-    ? state.rids.find(r => r.id === state.editingId)
-    : null;
-
-  const numero = editing?.numero ?? nextRidNumber();
-  const data = editing?.data ?? nowISODate();
-  const titulo = editing?.titulo ?? "";
-  const status = editing?.status ?? "Aberto";
-  const prioridade = editing?.prioridade ?? "Baixa";
-  const solicitante = editing?.solicitante ?? "";
-
-  return `
-    <div class="fixed inset-0 bg-black/60 flex items-end md:items-center justify-start p-4 z-50">
-      <div class="bg-white text-black rounded p-4 w-[320px]">
-        <div class="flex items-center justify-between mb-2">
-          <div class="font-bold">Novo RID</div>
-          <button id="btnCloseModal" class="px-2">X</button>
-        </div>
-
-        <div class="space-y-2 text-sm">
-          <div>
-            <div class="font-bold">Número</div>
-            <input id="mNumero" value="${escapeHtml(numero)}" class="w-full border border-gray-300" />
-          </div>
-
-          <div>
-            <div class="font-bold">Data</div>
-            <input id="mData" type="date" value="${escapeHtml(data)}" class="w-full border border-gray-300" />
-          </div>
-
-          <div>
-            <div class="font-bold">Título</div>
-            <input id="mTitulo" value="${escapeHtml(titulo)}" placeholder="Ex: Ajuste de processo..." class="w-full border border-gray-300" />
-          </div>
-
-          <div>
-            <div class="font-bold">Status</div>
-            <select id="mStatus" class="w-full border border-gray-300">
-              ${["Aberto","Em andamento","Concluído"].map(s => `
-                <option ${s === status ? "selected" : ""}>${s}</option>
-              `).join("")}
-            </select>
-          </div>
-
-          <div>
-            <div class="font-bold">Prioridade</div>
-            <select id="mPrioridade" class="w-full border border-gray-300">
-              ${["Baixa","Média","Alta"].map(p => `
-                <option ${p === prioridade ? "selected" : ""}>${p}</option>
-              `).join("")}
-            </select>
-          </div>
-
-          <div>
-            <div class="font-bold">Solicitante</div>
-            <input id="mSolicitante" value="${escapeHtml(solicitante)}" placeholder="Nome de quem solicitou" class="w-full border border-gray-300" />
-          </div>
-
-          <div class="flex gap-2 pt-2">
-            <button id="btnCancelModal" class="bg-gray-200 px-2 py-1 rounded">Cancelar</button>
-            <button id="btnSaveModal" class="bg-blue-600 text-white px-2 py-1 rounded">Salvar</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// -------------------------
-// Events
-// -------------------------
-function wireEvents() {
-  // barra de cima (os botões estão no index.html)
-  // Nada aqui.
-
-  // Busca (dashboard)
-  const searchTop = document.getElementById("searchTop");
-  if (searchTop) {
-    searchTop.addEventListener("input", (e) => updateFilters({ search: e.target.value }));
-  }
-
-  // Busca (rids)
-  const searchRids = document.getElementById("searchRids");
-  if (searchRids) {
-    searchRids.addEventListener("input", (e) => updateFilters({ search: e.target.value }));
-  }
-
-  // Filtros (dashboard)
-  const dashFilterStatus = document.getElementById("dashFilterStatus");
-  if (dashFilterStatus) {
-    dashFilterStatus.addEventListener("change", (e) => updateFilters({ status: e.target.value }));
-  }
-  const dashFilterPrioridade = document.getElementById("dashFilterPrioridade");
-  if (dashFilterPrioridade) {
-    dashFilterPrioridade.addEventListener("change", (e) => updateFilters({ prioridade: e.target.value }));
-  }
-
-  // Filtros (lista)
-  const listFilterStatus = document.getElementById("listFilterStatus");
-  if (listFilterStatus) {
-    listFilterStatus.addEventListener("change", (e) => updateFilters({ status: e.target.value }));
-  }
-  const listFilterPrioridade = document.getElementById("listFilterPrioridade");
-  if (listFilterPrioridade) {
-    listFilterPrioridade.addEventListener("change", (e) => updateFilters({ prioridade: e.target.value }));
-  }
-
-  // Botões Novo RID
-  const btnNewRidTop = document.getElementById("btnNewRidTop");
-  if (btnNewRidTop) btnNewRidTop.addEventListener("click", () => openModalNew());
-
-  const btnNewRidList = document.getElementById("btnNewRidList");
-  if (btnNewRidList) btnNewRidList.addEventListener("click", () => openModalNew());
-
-  // Export CSV
-  const btnExportDash = document.getElementById("btnExportDash");
-  if (btnExportDash) btnExportDash.addEventListener("click", () => downloadCSV(filteredRids()));
-
-  const btnExportList = document.getElementById("btnExportList");
-  if (btnExportList) btnExportList.addEventListener("click", () => downloadCSV(filteredRids()));
-
-  const btnExportRel = document.getElementById("btnExportRel");
-  if (btnExportRel) btnExportRel.addEventListener("click", () => downloadCSV(filteredRids()));
-
-  // Wipe / Seed
-  const btnWipe = document.getElementById("btnWipe");
-  if (btnWipe) btnWipe.addEventListener("click", wipeAll);
-
-  const btnSeed = document.getElementById("btnSeed");
-  if (btnSeed) btnSeed.addEventListener("click", seedExamples);
-
-  const btnWipe2 = document.getElementById("btnWipe2");
-  if (btnWipe2) btnWipe2.addEventListener("click", wipeAll);
-
-  const btnSeed2 = document.getElementById("btnSeed2");
-  if (btnSeed2) btnSeed2.addEventListener("click", seedExamples);
-
-  // Edit/Delete inline
-  document.querySelectorAll("[data-edit]").forEach(btn => {
-    btn.addEventListener("click", () => openModalNew(btn.getAttribute("data-edit")));
-  });
-  document.querySelectorAll("[data-del]").forEach(btn => {
-    btn.addEventListener("click", () => deleteRid(btn.getAttribute("data-del")));
+  // ---------- Modal ----------
+  const modal = $("#modal");
+  const openModal = (mode, rid = null) => {
+    $("#mErro").style.display = "none";
+    $("#mErro").textContent = "";
+
+    editingId = rid ? rid.id : null;
+
+    $("#modalTitle").textContent = mode === "edit" ? "Editar RID" : "Novo RID";
+    $("#modalHint").textContent = mode === "edit" ? "Edite e salve as alterações." : "Preencha os campos e salve.";
+
+    $("#mNumero").value = rid ? rid.numero : "";
+    $("#mData").value = rid ? rid.dataISO : todayISO();
+    $("#mTitulo").value = rid ? rid.titulo : "";
+    $("#mStatus").value = rid ? rid.status : "Aberto";
+    $("#mPrioridade").value = rid ? rid.prioridade : "Baixa";
+    $("#mSolicitante").value = rid ? rid.solicitante : "";
+    $("#mDescricao").value = rid ? (rid.descricao || "") : "";
+
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
+    $("#mNumero").focus();
+  };
+
+  const closeModal = () => {
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    editingId = null;
+  };
+
+  $("#btnFecharModal").addEventListener("click", closeModal);
+  $("#btnCancelar").addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeModal();
   });
 
-  // Modal events
-  if (state.modalOpen) {
-    const btnCloseModal = document.getElementById("btnCloseModal");
-    const btnCancelModal = document.getElementById("btnCancelModal");
-    const btnSaveModal = document.getElementById("btnSaveModal");
+  $("#btnNovoRid").addEventListener("click", () => openModal("new"));
+  $("#btnNovoRid2").addEventListener("click", () => openModal("new"));
 
-    if (btnCloseModal) btnCloseModal.addEventListener("click", closeModal);
-    if (btnCancelModal) btnCancelModal.addEventListener("click", closeModal);
+  // ---------- CRUD ----------
+  const upsertRid = () => {
+    const numero = safeText($("#mNumero").value);
+    const dataISO = safeText($("#mData").value);
+    const titulo = safeText($("#mTitulo").value);
+    const status = $("#mStatus").value;
+    const prioridade = $("#mPrioridade").value;
+    const solicitante = safeText($("#mSolicitante").value);
+    const descricao = safeText($("#mDescricao").value);
 
-    if (btnSaveModal) {
-      btnSaveModal.addEventListener("click", () => {
-        const numero = document.getElementById("mNumero").value.trim() || nextRidNumber();
-        const data = document.getElementById("mData").value || nowISODate();
-        const titulo = document.getElementById("mTitulo").value.trim();
-        const status = document.getElementById("mStatus").value;
-        const prioridade = document.getElementById("mPrioridade").value;
-        const solicitante = document.getElementById("mSolicitante").value.trim();
+    const err = (msg) => {
+      $("#mErro").textContent = msg;
+      $("#mErro").style.display = "block";
+    };
 
-        if (!titulo) {
-          alert("Preencha o Título.");
-          return;
-        }
+    if (!numero) return err("Informe o número do RID.");
+    if (!/^\d+$/g.test(numero)) return err("O número deve conter apenas dígitos (ex: 1024).");
+    if (!dataISO) return err("Informe a data.");
+    if (!titulo) return err("Informe o título.");
+    if (!solicitante) return err("Informe o solicitante.");
 
-        if (state.editingId) {
-          state.rids = state.rids.map(r => {
-            if (r.id !== state.editingId) return r;
-            return { ...r, numero, data, titulo, status, prioridade, solicitante };
-          });
-        } else {
-          state.rids.push({
-            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-            numero,
-            data,
-            titulo,
-            status,
-            prioridade,
-            solicitante,
-          });
-        }
+    // impedir duplicado (se criando)
+    const exists = rids.some((r) => r.numero === numero && r.id !== editingId);
+    if (exists) return err("Já existe um RID com esse número.");
 
-        saveRids();
-        closeModal();
+    if (editingId) {
+      rids = rids.map((r) =>
+        r.id === editingId
+          ? { ...r, numero, dataISO, titulo, status, prioridade, solicitante, descricao, updatedAt: Date.now() }
+          : r
+      );
+    } else {
+      const rid = {
+        id: crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()) + "_" + Math.random().toString(16).slice(2),
+        numero,
+        dataISO,
+        titulo,
+        status,
+        prioridade,
+        solicitante,
+        descricao,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      rids.unshift(rid);
+    }
+
+    save(rids);
+    closeModal();
+    renderAll();
+  };
+
+  $("#btnSalvar").addEventListener("click", upsertRid);
+
+  const delRid = (id) => {
+    const rid = rids.find((r) => r.id === id);
+    const ok = confirm(`Excluir o RID ${rid?.numero || ""}?`);
+    if (!ok) return;
+    rids = rids.filter((r) => r.id !== id);
+    save(rids);
+    renderAll();
+  };
+
+  const toggleConcluir = (id) => {
+    rids = rids.map((r) => {
+      if (r.id !== id) return r;
+      const next = r.status === "Concluído" ? "Aberto" : "Concluído";
+      return { ...r, status: next, updatedAt: Date.now() };
+    });
+    save(rids);
+    renderAll();
+  };
+
+  // ---------- Filters / Search ----------
+  const applyFilters = (list, query, status, prioridade) => {
+    let out = [...list];
+
+    if (query) {
+      const q = norm(query);
+      out = out.filter((r) => {
+        const hay = norm(`${r.numero} ${r.titulo} ${r.solicitante} ${r.status} ${r.prioridade} ${r.descricao || ""}`);
+        return hay.includes(q);
       });
     }
+
+    if (status) out = out.filter((r) => r.status === status);
+    if (prioridade) out = out.filter((r) => r.prioridade === prioridade);
+
+    return out;
+  };
+
+  // ---------- Rendering ----------
+  const rowHTML = (r) => `
+    <tr>
+      <td>${r.numero}</td>
+      <td>${escapeHTML(r.titulo)}</td>
+      <td>${badgeStatus(r.status)}</td>
+      <td>${badgePrio(r.prioridade)}</td>
+      <td>${escapeHTML(r.solicitante)}</td>
+      <td>${toBR(r.dataISO)}</td>
+      <td class="right">
+        <div class="actions">
+          <button class="smallBtn" data-act="edit" data-id="${r.id}">Editar</button>
+          <button class="smallBtn" data-act="done" data-id="${r.id}">${r.status === "Concluído" ? "Reabrir" : "Concluir"}</button>
+          <button class="smallBtn danger" data-act="del" data-id="${r.id}">Excluir</button>
+        </div>
+      </td>
+    </tr>
+  `;
+
+  function escapeHTML(s){
+    return safeText(s)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
   }
-}
 
-// -------------------------
-// Actions
-// -------------------------
-function wipeAll() {
-  const ok = confirm("Tem certeza que deseja apagar todos os RIDs?");
-  if (!ok) return;
-  state.rids = [];
-  saveRids();
-  render();
-}
+  const bindTableActions = (tableEl) => {
+    tableEl.querySelectorAll("button[data-act]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.id;
+        const act = btn.dataset.act;
+        const rid = rids.find((x) => x.id === id);
 
-function seedExamples() {
-  const base = [
-    { titulo: "Ajuste de processo", status: "Aberto", prioridade: "Média", solicitante: "JOÃO" },
-    { titulo: "Troca de componente", status: "Em andamento", prioridade: "Alta", solicitante: "MARIA" },
-    { titulo: "Conferência final", status: "Concluído", prioridade: "Baixa", solicitante: "CARLOS" },
-  ];
-
-  const today = nowISODate();
-
-  for (const b of base) {
-    state.rids.push({
-      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
-      numero: nextRidNumber(),
-      data: today,
-      titulo: b.titulo,
-      status: b.status,
-      prioridade: b.prioridade,
-      solicitante: b.solicitante,
+        if (act === "edit") return openModal("edit", rid);
+        if (act === "done") return toggleConcluir(id);
+        if (act === "del") return delRid(id);
+      });
     });
-  }
+  };
 
-  saveRids();
-  render();
-}
+  const renderKPIs = () => {
+    const total = rids.length;
+    const abertos = rids.filter((r) => r.status === "Aberto").length;
+    const andamento = rids.filter((r) => r.status === "Em andamento").length;
+    const concluidos = rids.filter((r) => r.status === "Concluído").length;
 
-// -------------------------
-// Navegação (chamado pelos botões do menu do index.html)
-// -------------------------
-window.showDashboard = () => setView("dashboard");
-window.showRIDs = () => setView("rids");
-window.showRelatorios = () => setView("relatorios");
-window.showConfig = () => setView("config");
+    $("#kpiTotal").textContent = total;
+    $("#kpiAbertos").textContent = abertos;
+    $("#kpiAndamento").textContent = andamento;
+    $("#kpiConcluidos").textContent = concluidos;
+  };
 
-// Start
-render();
+  const renderTables = () => {
+    const qDash = safeText($("#globalSearch").value);
+    const status = $("#fStatus").value;
+    const prio = $("#fPrioridade").value;
+
+    const filtered = applyFilters(rids, qDash, status, prio);
+
+    // principais
+    const tb = $("#tblRids tbody");
+    tb.innerHTML = filtered.map(rowHTML).join("") || `<tr><td colspan="7" class="muted">Nenhum RID encontrado.</td></tr>`;
+    bindTableActions(tb);
+
+    // ultimos (top 6)
+    const tbu = $("#tblUltimos tbody");
+    const last = filtered.slice(0, 6);
+    tbu.innerHTML = last.map(rowHTML).join("") || `<tr><td colspan="7" class="muted">Nenhum RID cadastrado.</td></tr>`;
+    bindTableActions(tbu);
+
+    // tabela da aba RIDs
+    const q2 = safeText($("#ridsSearch").value);
+    const filtered2 = applyFilters(rids, q2, "", "");
+    const tb2 = $("#tblRids2 tbody");
+    tb2.innerHTML = filtered2.map(rowHTML).join("") || `<tr><td colspan="7" class="muted">Nenhum RID encontrado.</td></tr>`;
+    bindTableActions(tb2);
+  };
+
+  const countBy = (keyFn) => {
+    const map = new Map();
+    for (const r of rids) {
+      const k = keyFn(r);
+      map.set(k, (map.get(k) || 0) + 1);
+    }
+    return [...map.entries()].sort((a,b) => b[1]-a[1]);
+  };
+
+  const renderReports = () => {
+    const byStatus = countBy((r) => r.status);
+    const byPrio = countBy((r) => r.prioridade);
+
+    $("#repStatus").innerHTML =
+      byStatus.map(([k,v]) => `<div class="repItem"><strong>${k}</strong><span>${v}</span></div>`).join("") ||
+      `<div class="muted">Sem dados</div>`;
+
+    $("#repPrioridade").innerHTML =
+      byPrio.map(([k,v]) => `<div class="repItem"><strong>${k}</strong><span>${v}</span></div>`).join("") ||
+      `<div class="muted">Sem dados</div>`;
+  };
+
+  const renderAll = () => {
+    renderKPIs();
+    renderTables();
+    renderReports();
+  };
+
+  // ---------- CSV ----------
+  const exportCSV = () => {
+    const status = $("#fStatus").value;
+    const prio = $("#fPrioridade").value;
+    const q = safeText($("#globalSearch").value);
+
+    const list = applyFilters(rids, q, status, prio);
+
+    const header = ["numero","data","titulo","status","prioridade","solicitante","descricao"];
+    const rows = list.map(r => [
+      r.numero,
+      toBR(r.dataISO),
+      r.titulo,
+      r.status,
+      r.prioridade,
+      r.solicitante,
+      r.descricao || ""
+    ]);
+
+    const csv = [header, ...rows]
+      .map(cols => cols.map(c => `"${safeText(c).replaceAll('"','""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rids_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  $("#btnExportar").addEventListener("click", exportCSV);
+
+  // ---------- Config buttons ----------
+  $("#btnApagarTudo").addEventListener("click", () => {
+    const ok = confirm("Tem certeza que deseja apagar TODOS os RIDs?");
+    if (!ok) return;
+    rids = [];
+    save(rids);
+    renderAll();
+    alert("RIDs apagados.");
+  });
+
+  $("#btnCriarExemplos").addEventListener("click", () => {
+    const examples = [
+      { numero:"1001", dataISO: todayISO(), titulo:"Ajuste de processo", status:"Aberto", prioridade:"Média", solicitante:"João", descricao:"Revisar fluxo do atendimento." },
+      { numero:"1002", dataISO: todayISO(), titulo:"Erro em relatório", status:"Em andamento", prioridade:"Alta", solicitante:"Maria", descricao:"Relatório mensal com divergência." },
+      { numero:"1003", dataISO: todayISO(), titulo:"Atualização de template", status:"Concluído", prioridade:"Baixa", solicitante:"Carlos", descricao:"Padronizar cabeçalhos." },
+    ].map(x => ({
+      id: crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()) + "_" + Math.random().toString(16).slice(2),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      ...x
+    }));
+
+    // não duplicar número se já existir
+    const existingNums = new Set(rids.map(r => r.numero));
+    const toAdd = examples.filter(e => !existingNums.has(e.numero));
+
+    rids = [...toAdd, ...rids];
+    save(rids);
+    renderAll();
+    alert("Exemplos criados.");
+  });
+
+  // ---------- Inputs triggers ----------
+  $("#globalSearch").addEventListener("input", renderAll);
+  $("#fStatus").addEventListener("change", renderAll);
+  $("#fPrioridade").addEventListener("change", renderAll);
+  $("#ridsSearch").addEventListener("input", renderAll);
+
+  // ---------- Boot ----------
+  // se estiver vazio, já renderiza mesmo assim
+  renderAll();
+})();
