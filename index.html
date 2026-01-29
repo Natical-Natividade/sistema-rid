@@ -2,25 +2,35 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Sistema RID</title>
+  <title>Sistema RID Privado</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- CSS -->
-  <link rel="stylesheet" href="assets/css/style.css">
-
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <link rel="stylesheet" href="css/style.css">
 </head>
 
-<body class="min-h-screen bg-slate-900 text-white">
-  <div id="app" class="p-6"></div>
+<body class="bg-slate-900 text-white min-h-screen">
+
+  <!-- TOPO -->
+  <header class="bg-slate-950 p-4 border-b border-slate-800">
+    <h1 class="text-xl font-bold">RID</h1>
+    <p class="text-sm text-slate-400">Sistema RID Privado</p>
+
+    <nav class="mt-3 space-x-2">
+      <button onclick="showDashboard()" class="btn">Dashboard</button>
+      <button onclick="showRIDs()" class="btn">RIDs</button>
+      <button onclick="showRelatorios()" class="btn">Relatórios</button>
+      <button onclick="showConfig()" class="btn">Config</button>
+    </nav>
+  </header>
+
+  <!-- CONTEÚDO -->
+  <main id="app" class="p-6"></main>
 
   <!-- JS -->
-  <script src="assets/js/app.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
